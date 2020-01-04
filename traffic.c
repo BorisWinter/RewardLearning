@@ -470,8 +470,8 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
         }
 
         // Update qValues
-        qValues[action][statePrime] = (1-learningRate) * qValues[action][state] + learningRate *
-        (reward + discountFactor * estOptFutValue);
+        qValues[action][state] = qValues[action][state] + (1 - learningRate) *
+        (reward + discountFactor * (estOptFutValue - qValues[action][state]));
 
         // Print Q-values
         printf("Updated Q-values:\n");
@@ -498,7 +498,7 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
 
 int main(int argc, char *argv[]) {
     // Initialization
-    int numEpochs = 1000, numLanes = 4, numCars = 2, maxTime = 3;
+    int numEpochs = 10000, numLanes = 4, numCars = 2, maxTime = 3;
     srand(time(0));
     struct Intersection intersection = initializeIntersection(numLanes, numCars, maxTime);
       
