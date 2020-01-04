@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <time.h>
 
-//State space: 4*(4^8) = 262144 (#lanes*(#differentWaitingTimes^#carSpots))
+//State space: 4^(4*2) = 65536 ((#differentWaitingTimes^(#lanes*#maxCars))
 
 // Structure that stores the states of the lights and cars on the intersection
 struct Intersection{
@@ -318,7 +318,7 @@ int* randomActionSelection(struct Intersection intersection, int numLanes, int n
         updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
         
         // Print visual representation of the intersection
-        printIntersectionVisualInColor(&intersection, action);
+        printIntersectionVisual(&intersection, action);
         
         // Add a car to a random spot
         addRandomCar(&intersection, numLanes, numCars, maxTime);
@@ -344,10 +344,10 @@ int* randomActionSelection(struct Intersection intersection, int numLanes, int n
     return rewards;
 }
 
-int getOptimalQValueAction(double *qValues, State state, int numActions){
+int getOptimalQValueAction(double **qValues, int state, int numActions){
     // For the qValues where the state = state, return the highest value
-    double action = 0;
-    for(int i=1;i<numActions;i++){
+    int action = getRandomNumber(0,numActions-1);
+    for(int i=0;i<numActions;i++){
         if(qValues[i][state] > qValues[action][state]){
             action = i;
         }
@@ -355,46 +355,78 @@ int getOptimalQValueAction(double *qValues, State state, int numActions){
     return action;
 }
 
-int selectQValueAction(double epsilon, double qValues, double state, int numActions){
+int selectQValueAction(double epsilon, int state, int numActions, double **qValues){
     // Random number between 0 and 1
     double randomExploration = ((double) rand() / (RAND_MAX));
     int action = 0;
 
     if(randomExploration < epsilon){
-        int action = getRandomNumber(0,numActions-1); // Random choice
+        action = getRandomNumber(0,numActions-1); // Random choice
     }else{
-        int action = getOptimalQValueAction(qValues, state, numActions); // Optimal choice
+        action = getOptimalQValueAction(qValues, state, numActions); // Optimal choice
     }
     return action;
 }
 
+// Returns number of states for given parameter values
+int getNumStates(int numLanes, int numCars, int maxTime){
+    return pow(maxTime,(numCars*numLanes));
+}
+
+// Returns state as a 1-D array with 8 values for each car spot
+int getState(struct Intersection intersection, int numLanes, int numCars, int maxTime){
+    int state = 0;
+    for(int i=0; i<numLanes; i++){
+        for(int j=0; j<numCars; j++){
+             state= state*10 + intersection.lanes[i][j];
+        }
+    }
+    printf("\nstateIndex : %d\n", state);
+    return state;
+}
+
+// Function that prints current state with q values for different actions
+void printQValues(double **qValues, int state, int numLanes){
+    for(int i=0; i<numLanes; i++){
+        printf("Q(action == %d)=%f\n", i, qValues[i][state]);
+    }
+}
+
 // Algorithm that chooses new traffic signs by Q-learning
-int* qLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int numStates){
+int* qLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs){
     int currentWaitingTime = 0, oldWaitingTime = 0;
     double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
+    int numStates = getNumStates(numLanes, numCars, maxTime);
+    int* rewards = malloc(numEpochs * sizeof(int));
+    int state, statePrime, action;
 
     // Allocate memory for Q values
     double **qValues = malloc(numLanes * sizeof(double *));
     for(int i=0; i<numLanes; i++){
-        qValues[i] = malloc(numStates * sizeof(int));
+        qValues[i] = malloc(33333333 * sizeof(double));
     }
 
-    // Initialize Q values to 0
+    // Initialize Q values to 1 (optimistic initial value)
     for(int i=0; i<numLanes; i++){
-        for(int j=0; j<numStates; j++){
-            qValues[i][j] = 0;
+        for(int j=0; j<33333333; j++){
+            qValues[i][j] = 1;
         }
     }
 
     // Run through epochs
     for(int i=0; i<numEpochs; i++){
         // Print number of epoch
-        printf("Epoch %d", i);
+        printf("Epoch %d\n", i);
         printWaitingTime(&intersection, numLanes, numCars);
-        
+
+        // Get current state
+        state = getState(intersection, numLanes, numCars, maxTime);
+
         // Choose an action
-        int action = selectQValueAction(epsilon, &qValues, state, numLanes);
-        
+        printQValues(qValues, statePrime, numLanes);
+        action = selectQValueAction(epsilon, state, numLanes, qValues);
+        printf("Selected action:%d\n\n",action);
+
         // Print visual representation of the intersection
         printIntersectionVisual(&intersection, action);
         
@@ -406,11 +438,14 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
         updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
         
         // Print visual representation of the intersection
-        printIntersectionVisualInColor(&intersection, action);
+        printIntersectionVisual(&intersection, action);
         
         // Add a car to a random spot
         addRandomCar(&intersection, numLanes, numCars, maxTime);
-        
+
+        // Get state after performed action
+        statePrime = getState(intersection, numLanes, numCars, maxTime);
+
         // Update the waiting times and the reward(difference between waiting times)
         oldWaitingTime = getTotalWaitingTime(&intersection);
         currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
@@ -422,50 +457,51 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
         // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
         if(oldWaitingTime!=0){
             reward = oldWaitingTime - currentWaitingTime;
-            qValues[i]=reward;
-            printf("Reward : %d.\n", qValues[i]);
+            rewards[i]=reward;
+            printf("Reward : %d.\n", rewards[i]);
         }
 
         // Get next state's max qValue
-        double estOptFutValue = qValues[0][nextState];
+        double estOptFutValue = qValues[0][statePrime];
         for(int i=1; i<numLanes;i++){
-            if(qValues[i][nextState] > estOptFutValue){
-                estOptFutValue = qValues[i][nextState];
+            if(qValues[i][statePrime] > estOptFutValue){
+                estOptFutValue = qValues[i][statePrime];
             }
         }
 
         // Update qValues
-        qValues[action][State->id] = (1-learningRate) * qValues[action][State->id] + learningRate *
+        qValues[action][statePrime] = (1-learningRate) * qValues[action][state] + learningRate *
         (reward + discountFactor * estOptFutValue);
-            
+
+        // Print Q-values
+        printf("Updated Q-values:\n");
+        printQValues(qValues, statePrime, numLanes);
+
         // End of epoch
         printf("-------------------------------------------------\n");    
     }
-    return qValues;
+    return rewards;
 }
 
 //Starts the different algorithms
 void startSimulation(struct Intersection intersection, int numEpochs, int numLanes, int numCars, int maxTime){
     int* rewards = malloc(numEpochs * sizeof(int));
-    int algorithm;
-    // Perform random action selection
-    rewards = randomActionSelection(intersection, numLanes, numCars, maxTime, numEpochs);
-    writeToCsvFile(rewards, numEpochs, 1);
+    // Perform random action selection and write results to a csv file
+    //rewards = randomActionSelection(intersection, numLanes, numCars, maxTime, numEpochs);
+    //writeToCsvFile(rewards, numEpochs, 1);
     
-    // Perform Q learing
-    //rewards =qLearning(intersection, numLanes, numCars, maxTime, numEpochs);
+    // Perform Q learing and write results to a csv file
+    rewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs);
     //writeToCsvFile(rewards, numEpochs, 2);
-    
-    // And more??
+
 }
 
 int main(int argc, char *argv[]) {
-    
     // Initialization
-    int numEpochs = 10, numLanes = 4, numCars = 2, maxTime = 3;
+    int numEpochs = 1000, numLanes = 4, numCars = 2, maxTime = 3;
     srand(time(0));
     struct Intersection intersection = initializeIntersection(numLanes, numCars, maxTime);
-    
+      
     // Start the traffic control simulation
     startSimulation(intersection, numEpochs, numLanes, numCars, maxTime);
 
