@@ -70,34 +70,23 @@ void setGreenLight(struct Intersection *intersection, int lane, int numCars){
     }
 }
 
-// Function that adds a random car to one of the available lanes
+// Function that adds random cars to some available lanes
 void addRandomCar(struct Intersection *intersection, int numLanes, int numCars, int maxTime){
+    // Go through all lanes, if the lane has a free spot, add a car in the
+    // furthermost position with probability .5
+    for(int lane=0; lane<numLanes; lane++){
 
-    // Loop through all lanes to see which are available
-    int availableCount = 0;
-    for(int i=0; i<numLanes; i++){
-        if(intersection->lanes[i][numCars-1] == 0){
-            availableCount++;
-        }
-    }
-
-    // If an available lane exists, choose a random lane until an available is chosen
-    if(availableCount != 0){
-        int lane = getRandomNumber(0,numLanes-1);
-        while (intersection->lanes[lane][numCars-1] != 0){
-            lane = getRandomNumber(0,numLanes-1);
-        }
-
-        // For the chosen lane, put a car in the furthermost position
         if(intersection->lanes[lane][0] == 0){
-            intersection->lanes[lane][0] = 1;
-            printf("New car at position 0 of lane %d.", lane);
+            if(getRandomNumber(1,10) <= 5){
+                intersection->lanes[lane][0] = 1;
+                printf("New car at position 0 of lane %d.", lane);
+            }
         }else{
-            intersection->lanes[lane][1] = 1;
-            printf("New car at position 1 of lane %d.", lane);
+            if(getRandomNumber(1,10) <= 5){
+                intersection->lanes[lane][1] = 1;
+                printf("New car at position 1 of lane %d.", lane);
+            }
         }
-    }else{
-        printf("No available spots.");
     }
 }
 
@@ -492,7 +481,7 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
     
     // Perform Q learing and write results to a csv file
     rewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs);
-    //writeToCsvFile(rewards, numEpochs, 2);
+    writeToCsvFile(rewards, numEpochs, 2);
 
 }
 
