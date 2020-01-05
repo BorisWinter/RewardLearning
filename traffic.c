@@ -30,6 +30,13 @@ void writeToCsvFile(int* rewards, int numEpochs, int algorithm){
 		}
     fclose(fp1);
 	}
+    if(algorithm==3){ //eGreedy
+		fp1 = fopen("eGreedy.csv", "w");											
+		for (int i = 0; i< numEpochs; i++){
+			fprintf(fp1, "\n%d,%d",i,rewards[i]);
+		}
+    fclose(fp1);
+	}
 }
 
 // Function that returns a random integer between two values
@@ -381,6 +388,32 @@ void printQValues(double **qValues, int state, int numLanes){
     }
 }
 
+int getOptimalEpsilonGreedyAction(double **estimatedValues, int state, int numActions){
+    // For the estimated values where the state equals the current state, return the action with the highest estimated value
+    int action = 0;
+    for(int i=0;i<numActions;i++){
+        if(estimatedValues[i][state] > estimatedValues[action][state]){
+            action = i;
+        }
+    }
+    return action;
+}
+
+// Function that selects an action based on the e-greedy algorithm
+int selectEpsilonGreedyAction(double epsilon, int state, int numActions, double **estimatedValues){
+    // Random number between 0 and 1
+    double randomExploration = ((double) rand() / (RAND_MAX));
+    int action = 0;
+
+    if(randomExploration < epsilon){
+        action = getRandomNumber(0,numActions-1); // Random choice
+    }else{
+        action = getOptimalEpsilonGreedyAction(estimatedValues, state, numActions); // Optimal choice
+    }
+    return action;
+}
+
+
 // Algorithm that chooses new traffic signs by Q-learning
 int* qLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs){
     int currentWaitingTime = 0, oldWaitingTime = 0;
@@ -472,6 +505,90 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
     return rewards;
 }
 
+// Algorithm that chooses new traffic signs by eGreedy
+int* eGreedy(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs){
+    double epsilon = 0.05, stepSize = 0.1, reward = 0.0, currentWaitingTime = 0, oldWaitingTime = 0;
+    int numStates = getNumStates(numLanes, numCars, maxTime);
+    int* rewards = malloc(numEpochs * sizeof(double));
+    int state, statePrime, action;
+
+    // Allocate memory for estimatedValues
+    double **estimatedValues = malloc(numLanes * sizeof(double *));
+    for(int i=0; i<numLanes; i++){
+        estimatedValues[i] = malloc(numStates * sizeof(double));
+    }
+
+    // Initialize estimated values to 0
+    for(int i=0; i<numLanes; i++){
+        for(int j=0; j<numStates; j++){
+            estimatedValues[i][j] = 1;
+        }
+    }
+
+    // Run through epochs
+    for(int i=0; i<numEpochs; i++){
+        int choice = 0;
+
+        // Print number of epoch
+        printf("Epoch %d\n", i);
+        printWaitingTime(&intersection, numLanes, numCars);
+
+        // Get current state
+        state = getState(intersection, numLanes, numCars, maxTime);
+
+        // Choose an action
+        printQValues(estimatedValues, statePrime, numLanes);
+        action = selectEpsilonGreedyAction(epsilon, state, numLanes, estimatedValues);
+        printf("Selected action:%d\n\n",action);
+
+        // Print visual representation of the intersection
+        printIntersectionVisual(&intersection, action);
+        
+        // Set the chosen light to be green
+        setGreenLight(&intersection, action, numCars);
+        printf("Green light for lane %d and waiting times +1.\n", action);
+        
+        // Update the waiting time of each car
+        updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
+        
+        // Print visual representation of the intersection
+        printIntersectionVisual(&intersection, action);
+        
+        // Randomly add cars to free lanes
+        addRandomCar(&intersection, numLanes, numCars, maxTime);
+
+        // Get state after performed action
+        statePrime = getState(intersection, numLanes, numCars, maxTime);
+
+        // Update the waiting times and the reward(difference between waiting times)
+        oldWaitingTime = getTotalWaitingTime(&intersection);
+        currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
+        
+        // Print visual representation of the intersection
+        printWaitingTime(&intersection, numLanes, numCars);
+        printIntersectionVisual(&intersection, action);
+        
+        // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
+        if(oldWaitingTime!=0){
+            reward = oldWaitingTime - currentWaitingTime;
+            rewards[i]=reward;
+            printf("Reward : %d.\n", rewards[i]);
+        }
+
+        // Update estimated values for this state
+        estimatedValues[action][state] = estimatedValues[action][state] + stepSize*(reward - estimatedValues[action][state]);
+
+        // Print Q-values
+        printf("Updated estimated values:\n");
+        printQValues(estimatedValues, statePrime, numLanes);
+
+        // End of epoch
+        printf("-------------------------------------------------\n");  
+    }
+    return rewards;
+}
+
+
 //Starts the different algorithms
 void startSimulation(struct Intersection intersection, int numEpochs, int numLanes, int numCars, int maxTime){
     int* rewards = malloc(numEpochs * sizeof(int));
@@ -482,6 +599,10 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
     // Perform Q learing and write results to a csv file
     rewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs);
     writeToCsvFile(rewards, numEpochs, 2);
+
+    // Perform epsilon Greedy and write results to a csv file
+    // rewards = eGreedy(intersection, numLanes, numCars, maxTime, numEpochs);
+    // writeToCsvFile(rewards, numEpochs, 3);
 
 }
 
