@@ -412,7 +412,7 @@ int* randomActionSelection(struct Intersection intersection, int numLanes, int n
     return rewards;
 }
 
-// Algorithm that chooses new traffic signs by Q-learning
+// Algorithm that chooses new traffic signs by Q-learning (Off policy Temporal Difference control)
 int* qLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy){
     int currentWaitingTime = 0, oldWaitingTime = 0;
     double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
@@ -510,9 +510,129 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
             }
         }
 
-        // Update qValues
-        qValues[action][state] = qValues[action][state] + (1 - learningRate) *
-        (reward + discountFactor * (estOptFutValue - qValues[action][state]));
+        // Update qValues Q(s,a) = Q(s,a)+alpha[reward + γ * maxQ(s(+1),a(+1+))−Q(s,a)]
+        qValues[action][state] = qValues[action][state] + learningRate *
+        (reward + discountFactor*estOptFutValue - qValues[action][state]);
+
+        // Print Q-values
+        printf("Updated Q-values:\n");
+        printQValues(qValues, statePrime, numLanes);
+
+        // End of epoch
+        printf("-------------------------------------------------\n");    
+    }
+    return rewards;
+}
+
+// Algorithm that chooses new traffic signs by Sarsa (On policy Temporal Difference control)
+int* sarsa(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy){
+    int currentWaitingTime = 0, oldWaitingTime = 0;
+    double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
+    int numStates = getNumStates(numLanes, numCars, maxTime);
+    int* rewards = malloc(numEpochs * sizeof(int));
+    int state, statePrime, action;
+
+
+    // Allocate memory for Q values
+    double **qValues = malloc(numLanes * sizeof(double *));
+    for(int i=0; i<numLanes; i++){
+        qValues[i] = malloc(33333333 * sizeof(double));
+    }
+
+    // Initialize Q values to 0 (E-greedy)
+    if(policy==1){
+        for(int i=0; i<numLanes; i++){
+            for(int j=0; j<33333333; j++){
+                qValues[i][j] = 0;
+            }
+        }
+    }
+    // Initialize Q values to 1 (Optimistic Initial Value)
+    if(policy==2){
+        for(int i=0; i<numLanes; i++){
+            for(int j=0; j<33333333; j++){
+                qValues[i][j] = 3;
+            }
+        }
+    }
+
+    // Run through epochs
+    for(int i=0; i<numEpochs; i++){
+        // Print number of epoch
+        printf("Epoch %d\n", i);
+
+        // Print total time for all waiting cars
+        printWaitingTime(&intersection, numLanes, numCars);
+
+        // Get current state
+        state = getState(intersection, numLanes, numCars, maxTime);
+
+        // Prints the Q-values for the different actions
+        printQValues(qValues, statePrime, numLanes);
+        
+        // Choose action by the used policy
+        if(policy == 1){// E-greedy policy
+            action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
+        } 
+        if(policy == 2){// Optimal initial values policy
+            action = selectOptimalInitialValuesAction(state, numLanes, qValues);
+        } 
+
+        // Print visual representation of the intersection
+        printIntersectionVisual(&intersection, action);
+        
+        // Choose one of the 4 lights to be green
+        setGreenLight(&intersection, action, numCars);
+
+        // Print which traffic light is set to green
+        printf("Green light for lane %d and waiting times +1.\n", action);
+        
+        // Update the waiting time of each car
+        updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
+        
+        // Print visual representation of the intersection
+        printIntersectionVisualInColor(&intersection, action);
+        
+        // Add a car to a random spot
+        addRandomCar(&intersection, numLanes, numCars, maxTime);
+
+        // Get state after performed action
+        statePrime = getState(intersection, numLanes, numCars, maxTime);
+
+        // Update the waiting times
+        oldWaitingTime = getTotalWaitingTime(&intersection);
+        currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
+        
+        // Print visual representation of the intersection
+        printWaitingTime(&intersection, numLanes, numCars);
+        printIntersectionVisual(&intersection, action);
+        
+        // Get reward (reward = waitingTime_{t-1}-waitingTime_{t})
+        if(oldWaitingTime!=0){
+            reward = oldWaitingTime - currentWaitingTime;
+            rewards[i]=reward;
+            printf("Reward : %d.\n", rewards[i]);
+        }
+
+        // Get next state's qValue by used policy (not always directly the best one)
+        double estOptFutValue = qValues[0][statePrime];
+        if(policy==1){
+
+        }
+
+        if(policy==2){
+
+        }
+
+        for(int i=1; i<numLanes;i++){
+            if(qValues[i][statePrime] > estOptFutValue){
+                estOptFutValue = qValues[i][statePrime];
+            }
+        }
+
+        // Update Sarsa qValues Q(s,a) = Q(s,a)+alpha[reward + γ * Q(s(+1),a(+1+))−Q(s,a)],  in which Q(s(+1),a(+1+)) is computed by taking Q value from chosen action by policy (not optimal persé)
+        qValues[action][state] = qValues[action][state] + learningRate *
+        (reward + discountFactor*estOptFutValue - qValues[action][state]);
 
         // Print Q-values
         printf("Updated Q-values:\n");
