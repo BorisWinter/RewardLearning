@@ -662,10 +662,17 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
     rewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy);
     writeToCsvFile(rewards, numEpochs, algorithm, policy);
 
-    // Perform other method and write results to a csv file
-    // algorithm=3;
-    // rewards = ??????(intersection, numLanes, numCars, maxTime, numEpochs);
-    // writeToCsvFile(rewards, numEpochs, algorithm, policy);
+    // Perform Sarsa (3) with E-greedy policy (1) and write results to a csv file
+    algorithm=3;
+    policy=1;
+    rewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy);
+    writeToCsvFile(rewards, numEpochs, algorithm, policy);
+
+    // Perform Sarsa (3) with the Optimal initial values policy (2) and write results to a csv file
+    algorithm=3;
+    policy=2;
+    rewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy);
+    writeToCsvFile(rewards, numEpochs, algorithm, policy);
 
 }
 
