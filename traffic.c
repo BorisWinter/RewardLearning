@@ -614,21 +614,16 @@ int* sarsa(struct Intersection intersection, int numLanes, int numCars, int maxT
             printf("Reward : %d.\n", rewards[i]);
         }
 
-        // Get next state's qValue by used policy (not always directly the best one)
-        double estOptFutValue = qValues[0][statePrime];
-        if(policy==1){
-
-        }
-
-        if(policy==2){
-
-        }
-
-        for(int i=1; i<numLanes;i++){
-            if(qValues[i][statePrime] > estOptFutValue){
-                estOptFutValue = qValues[i][statePrime];
-            }
-        }
+        // Get qValue of state after performing on policy action again (not as in Q learning: use action with optimal Q-value)
+        double estOptFutValue;
+        if(policy == 1){// E-greedy policy
+            action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
+            estOptFutValue = qValues[action][statePrime];
+        } 
+        if(policy == 2){// Optimal initial values policy
+            action = selectOptimalInitialValuesAction(state, numLanes, qValues);
+            estOptFutValue = qValues[action][statePrime]; 
+        } 
 
         // Update Sarsa qValues Q(s,a) = Q(s,a)+alpha[reward + γ * Q(s(+1),a(+1+))−Q(s,a)],  in which Q(s(+1),a(+1+)) is computed by taking Q value from chosen action by policy (not optimal persé)
         qValues[action][state] = qValues[action][state] + learningRate *
