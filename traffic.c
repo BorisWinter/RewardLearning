@@ -14,23 +14,38 @@ struct Intersection{
 };
 
 // Writes outcomes to a csv file, this file is used in python to create plots
-void writeToCsvFile(int* rewards, int numEpochs, int algorithm){	
+void writeToCsvFile(int* rewards, int numEpochs, int algorithm, int policy){	
 	FILE *fp1;
-	if(algorithm==1){ //randomActionSelection
+
+    //randomActionSelection
+	if(algorithm==1){ 
 		fp1 = fopen("randomActionSelection.csv", "w");											
 		for (int i = 0; i< numEpochs; i++){
 			fprintf(fp1, "\n%d,%d",i,rewards[i]);
 		}
     fclose(fp1);
 	}
-	if(algorithm==2){ //qLearning
-		fp1 = fopen("qLearning.csv", "w");											
-		for (int i = 0; i< numEpochs; i++){
+
+    //qLearning
+	if(algorithm==2){ 
+        if(policy==1){ //E-Greedy
+            fp1 = fopen("qLearning-EGreedy.csv", "w");											
+		    for (int i = 0; i< numEpochs; i++){
 			fprintf(fp1, "\n%d,%d",i,rewards[i]);
-		}
+		    }
+        }
+        if(policy==2){ //Optimal Initial Values
+            fp1 = fopen("qLearning-OptimalInitialValues.csv", "w");											
+		    for (int i = 0; i< numEpochs; i++){
+			fprintf(fp1, "\n%d,%d",i,rewards[i]);
+		    }
+        }
+		
     fclose(fp1);
 	}
-    if(algorithm==3){ //eGreedy
+
+    //???????????
+    if(algorithm==3){
 		fp1 = fopen("eGreedy.csv", "w");											
 		for (int i = 0; i< numEpochs; i++){
 			fprintf(fp1, "\n%d,%d",i,rewards[i]);
@@ -290,6 +305,63 @@ void printIntersectionVisual(struct Intersection *intersection, int lane){
     printf("\n");
 }
 
+// Returns number of states for given parameter values
+int getNumStates(int numLanes, int numCars, int maxTime){
+    return pow(maxTime,(numCars*numLanes));
+}
+
+// Returns state as a 1-D array with 8 values for each car spot
+int getState(struct Intersection intersection, int numLanes, int numCars, int maxTime){
+    int state = 0;
+    for(int i=0; i<numLanes; i++){
+        for(int j=0; j<numCars; j++){
+             state= state*10 + intersection.lanes[i][j];
+        }
+    }
+    printf("\nstateIndex : %d\n", state);
+    return state;
+}
+
+// Function that prints current state with q values for different actions
+void printQValues(double **qValues, int state, int numLanes){
+    for(int i=0; i<numLanes; i++){
+        printf("Q(action == %d)=%f\n", i, qValues[i][state]);
+    }
+}
+
+// Returns action that is optimal by estimated q values
+int getOptimalAction(double **estimatedValues, int state, int numActions){
+    // For the estimated values where the state equals the current state, return the action with the highest estimated value
+    int action = 0;
+    for(int i=0;i<numActions;i++){
+        if(estimatedValues[i][state] > estimatedValues[action][state]){
+            action = i;
+        }
+    }
+    return action;
+}
+
+// Function that selects an action based on the e-greedy policy
+int selectEpsilonGreedyAction(double epsilon, int state, int numActions, double **estimatedValues){
+    // Random number between 0 and 1
+    double randomExploration = ((double) rand() / (RAND_MAX));
+    int action = 0;
+
+    if(randomExploration < epsilon){
+        action = getRandomNumber(0,numActions-1); // Random number between given boundaries
+    }else{
+        action = getOptimalAction(estimatedValues, state, numActions); // Optimal action based on the estimated values
+    }
+    return action;
+}
+
+// Function that selects an action based on the optimal initial value policy
+int selectOptimalInitialValuesAction(int state, int numActions, double **estimatedValues){
+    int action = 0;
+    action = getOptimalAction(estimatedValues, state, numActions); // Optimal choice
+    return action;
+}
+
 // Algorithm that chooses randomly new traffic signs each epoch
 int* randomActionSelection(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs){
     int currentWaitingTime = 0, oldWaitingTime = 0, reward;
@@ -340,97 +412,14 @@ int* randomActionSelection(struct Intersection intersection, int numLanes, int n
     return rewards;
 }
 
-int getOptimalQValueAction(double **qValues, int state, int numActions){
-    // For the qValues where the state = state, return the highest value
-    int action = getRandomNumber(0,numActions-1);
-    for(int i=0;i<numActions;i++){
-        if(qValues[i][state] > qValues[action][state]){
-            action = i;
-        }
-    }
-    return action;
-}
-
-int selectQValueAction(double epsilon, int state, int numActions, double **qValues){
-    // Random number between 0 and 1
-    double randomExploration = ((double) rand() / (RAND_MAX));
-    int action = 0;
-
-    if(randomExploration < epsilon){
-        action = getRandomNumber(0,numActions-1); // Random choice
-    }else{
-        action = getOptimalQValueAction(qValues, state, numActions); // Optimal choice
-    }
-    return action;
-}
-
-// Returns number of states for given parameter values
-int getNumStates(int numLanes, int numCars, int maxTime){
-    return pow(maxTime,(numCars*numLanes));
-}
-
-// Returns state as a 1-D array with 8 values for each car spot
-int getState(struct Intersection intersection, int numLanes, int numCars, int maxTime){
-    int state = 0;
-    for(int i=0; i<numLanes; i++){
-        for(int j=0; j<numCars; j++){
-             state= state*10 + intersection.lanes[i][j];
-        }
-    }
-    printf("\nstateIndex : %d\n", state);
-    return state;
-}
-
-// Function that prints current state with q values for different actions
-void printQValues(double **qValues, int state, int numLanes){
-    for(int i=0; i<numLanes; i++){
-        printf("Q(action == %d)=%f\n", i, qValues[i][state]);
-    }
-}
-
-int getOptimalAction(double **estimatedValues, int state, int numActions){
-    // For the estimated values where the state equals the current state, return the action with the highest estimated value
-    int action = 0;
-    for(int i=0;i<numActions;i++){
-        if(estimatedValues[i][state] > estimatedValues[action][state]){
-            action = i;
-        }
-    }
-    return action;
-}
-
-// Function that selects an action based on the e-greedy policy
-int selectEpsilonGreedyAction(double epsilon, int state, int numActions, double **estimatedValues){
-    // Random number between 0 and 1
-    double randomExploration = ((double) rand() / (RAND_MAX));
-    int action = 0;
-
-    if(randomExploration < epsilon){
-        action = getRandomNumber(0,numActions-1); // Random number between given boundaries
-    }else{
-        action = getOptimalAction(estimatedValues, state, numActions); // Optimal action based on the estimated values
-    }
-    return action;
-}
-
-// Function that selects an action based on the optimal initial value policy
-int selectOptimalInitialValuesAction(int state, int numActions, double **estimatedValues){
-    int action = 0;
-    action = getOptimalAction(estimatedValues, state, numActions); // Optimal choice
-    return action;
-}
-
-
 // Algorithm that chooses new traffic signs by Q-learning
-int* qLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs){
+int* qLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy){
     int currentWaitingTime = 0, oldWaitingTime = 0;
     double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
     int numStates = getNumStates(numLanes, numCars, maxTime);
     int* rewards = malloc(numEpochs * sizeof(int));
-    int state, statePrime, action, policy;
+    int state, statePrime, action;
 
-    printf("Which policy do you want to use?\n\t(1) - E-greedy\n\t(2) - Optimal initial values\n");
-    scanf("%d", &policy);
 
     // Allocate memory for Q values
     double **qValues = malloc(numLanes * sizeof(double *));
@@ -450,7 +439,7 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
     if(policy==2){
         for(int i=0; i<numLanes; i++){
             for(int j=0; j<33333333; j++){
-                qValues[i][j] = 1;
+                qValues[i][j] = 3;
             }
         }
     }
@@ -535,24 +524,37 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
     return rewards;
 }
 
-//Starts the different algorithms
+// Starts the different algorithms
 void startSimulation(struct Intersection intersection, int numEpochs, int numLanes, int numCars, int maxTime){
     int* rewards = malloc(numEpochs * sizeof(int));
+    int policy, algorithm;
 
-    // Perform random action selection and write results to a csv file
-    //rewards = randomActionSelection(intersection, numLanes, numCars, maxTime, numEpochs);
-    //writeToCsvFile(rewards, numEpochs, 1);
+    // Perform random action selection (1) with therefore random policy (0) and write results to a csv file
+    algorithm=1;
+    policy=0;
+    rewards = randomActionSelection(intersection, numLanes, numCars, maxTime, numEpochs);
+    writeToCsvFile(rewards, numEpochs, algorithm, policy);
     
-    // Perform Q learing and write results to a csv file
-    rewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs);
-    writeToCsvFile(rewards, numEpochs, 2);
+    // Perform Q learing (2) with the E-greedy policy (1) and write results to a csv file
+    algorithm=2;
+    policy=1;
+    rewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy);
+    writeToCsvFile(rewards, numEpochs, algorithm, policy);
+
+    // Perform Q learing (2) with the Optimal initial values policy (2) and write results to a csv file
+    algorithm=2;
+    policy=2;
+    rewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy);
+    writeToCsvFile(rewards, numEpochs, algorithm, policy);
 
     // Perform other method and write results to a csv file
+    // algorithm=3;
     // rewards = ??????(intersection, numLanes, numCars, maxTime, numEpochs);
-    // writeToCsvFile(rewards, numEpochs, 3);
+    // writeToCsvFile(rewards, numEpochs, algorithm, policy);
 
 }
 
+// Main of the program
 int main(int argc, char *argv[]) {
     // Initialization
     int numEpochs = 1000, numLanes = 4, numCars = 2, maxTime = 3;
