@@ -318,7 +318,7 @@ int* randomActionSelection(struct Intersection intersection, int numLanes, int n
         updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
         
         // Print visual representation of the intersection
-        printIntersectionVisual(&intersection, action);
+        printIntersectionVisualInColor(&intersection, action);
         
         // Add a car to a random spot
         addRandomCar(&intersection, numLanes, numCars, maxTime);
@@ -417,28 +417,33 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
     for(int i=0; i<numEpochs; i++){
         // Print number of epoch
         printf("Epoch %d\n", i);
+
+        // Print total time for all waiting cars
         printWaitingTime(&intersection, numLanes, numCars);
 
         // Get current state
         state = getState(intersection, numLanes, numCars, maxTime);
 
-        // Choose an action
+        // Prints the Q-values for the different actions
         printQValues(qValues, statePrime, numLanes);
+        
+        // Choose action by using Q-values
         action = selectQValueAction(epsilon, state, numLanes, qValues);
-        printf("Selected action:%d\n\n",action);
 
         // Print visual representation of the intersection
         printIntersectionVisual(&intersection, action);
         
         // Choose one of the 4 lights to be green
         setGreenLight(&intersection, action, numCars);
+
+        // Print which traffic light is set to green
         printf("Green light for lane %d and waiting times +1.\n", action);
         
         // Update the waiting time of each car
         updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
         
         // Print visual representation of the intersection
-        printIntersectionVisual(&intersection, action);
+        printIntersectionVisualInColor(&intersection, action);
         
         // Add a car to a random spot
         addRandomCar(&intersection, numLanes, numCars, maxTime);
@@ -446,7 +451,7 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
         // Get state after performed action
         statePrime = getState(intersection, numLanes, numCars, maxTime);
 
-        // Update the waiting times and the reward(difference between waiting times)
+        // Update the waiting times
         oldWaitingTime = getTotalWaitingTime(&intersection);
         currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
         
@@ -454,7 +459,7 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
         printWaitingTime(&intersection, numLanes, numCars);
         printIntersectionVisual(&intersection, action);
         
-        // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
+        // Get reward (reward = waitingTime_{t-1}-waitingTime_{t})
         if(oldWaitingTime!=0){
             reward = oldWaitingTime - currentWaitingTime;
             rewards[i]=reward;
@@ -498,7 +503,7 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
 
 int main(int argc, char *argv[]) {
     // Initialization
-    int numEpochs = 10000, numLanes = 4, numCars = 2, maxTime = 3;
+    int numEpochs = 1000, numLanes = 4, numCars = 2, maxTime = 3;
     srand(time(0));
     struct Intersection intersection = initializeIntersection(numLanes, numCars, maxTime);
       
