@@ -406,9 +406,9 @@ int selectEpsilonGreedyAction(double epsilon, int state, int numActions, double 
     int action = 0;
 
     if(randomExploration < epsilon){
-        action = getRandomNumber(0,numActions-1); // Random choice
+        action = getRandomNumber(0,numActions-1); // Random number between given boundaries
     }else{
-        action = getOptimalAction(estimatedValues, state, numActions); // Optimal choice
+        action = getOptimalAction(estimatedValues, state, numActions); // Optimal action based on the estimated values
     }
     return action;
 }
@@ -469,9 +469,7 @@ int* qLearning(struct Intersection intersection, int numLanes, int numCars, int 
         // Prints the Q-values for the different actions
         printQValues(qValues, statePrime, numLanes);
         
-        // Choose action by using Q-values
-        action = selectQValueAction(epsilon, state, numLanes, qValues);
-
+        // Choose action by the used policy
         if(policy == 1){// E-greedy policy
             action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
         } 
