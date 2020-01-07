@@ -58,6 +58,23 @@ void writeToCsvFile(double* averageWaitingTime, int numEpochs, int algorithm, in
         }
     fclose(fp1);
 	}
+
+    // R-learning
+    if(algorithm==4){
+		if(policy==1){ //E-Greedy
+            fp1 = fopen("RLearning-EGreedy.csv", "w");											
+		    for (int i = 0; i< numEpochs; i++){
+			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
+		    }
+        }
+        if(policy==2){ //Optimal Initial Values
+            fp1 = fopen("RLearning-OptimalInitialValues.csv", "w");											
+		    for (int i = 0; i< numEpochs; i++){
+			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
+		    }
+        }
+    fclose(fp1);
+	}
 }
 
 // Function that returns a random integer between two values
@@ -560,6 +577,151 @@ double* qLearning(struct Intersection intersection, int numLanes, int numCars, i
     return averageWaitingTime;
 }
 
+
+// Algorithm that chooses new traffic signs by R-learning (Off policy Temporal Difference control)
+double* rLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy, bool verbosity, int numRuns){
+    double* averageWaitingTime = (double*)calloc(numEpochs, sizeof(double));
+    // Allocate memory for Q values
+    double **qValues = malloc(numLanes * sizeof(double *));
+    for(int i=0; i<numLanes; i++){
+        qValues[i] = malloc(33333333 * sizeof(double));
+    }
+    
+    // Iterate over runs
+    for(int j=0;j<numRuns;j++){
+        printf("Run %d\n", j);
+        int currentWaitingTime = 0, oldWaitingTime = 0;
+        double learningRate = 0.1, reward = 0, avgExpReward = 1, epsilon = 0.1, stepSize = 0.1;
+        int numStates = getNumStates(numLanes, numCars, maxTime);
+        int state, statePrime, action;
+        
+        // Initialize Q values to 0 (E-greedy)
+        if(policy==1){
+            for(int i=0; i<numLanes; i++){
+                for(int j=0; j<33333333; j++){
+                    qValues[i][j] = 0;
+                }
+            }
+        }
+        // Initialize Q values to 1 (Optimistic Initial Value)
+        if(policy==2){
+            for(int i=0; i<numLanes; i++){
+                for(int j=0; j<33333333; j++){
+                    qValues[i][j] = 3;
+                }
+            }
+        }
+
+        // Run through epochs
+        for(int i=0; i<numEpochs; i++){
+            // Print number of epoch
+            if(verbosity==true){
+            printf("Epoch %d\n", i); 
+            }
+
+            // Print total time for all waiting cars
+            if(verbosity==true){
+                printWaitingTime(&intersection, numLanes, numCars);
+            }
+
+            // Get current state
+            state = getState(intersection, numLanes, numCars, maxTime);
+
+            // Prints the Q-values for the different actions
+            if(verbosity==true){
+                printQValues(qValues, statePrime, numLanes);
+            }
+            
+            // Choose action by the used policy
+            if(policy == 1){// E-greedy policy
+                action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
+            } 
+            if(policy == 2){// Optimal initial values policy
+                action = selectOptimalInitialValuesAction(state, numLanes, qValues);
+            } 
+
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printIntersectionVisual(&intersection, action);
+            }
+            
+            // Choose one of the 4 lights to be green
+            setGreenLight(&intersection, action, numCars);
+
+            // Print which traffic light is set to green
+            if(verbosity==true){
+            printf("Green light for lane %d and waiting times +1.\n", action); 
+            }
+            
+            // Update the waiting time of each car
+            updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
+            
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printIntersectionVisualInColor(&intersection, action);
+            }
+            
+            // Add a car to a random spot
+            addRandomCar(&intersection, numLanes, numCars, maxTime, verbosity);
+
+            // Get state after performed action
+            statePrime = getState(intersection, numLanes, numCars, maxTime);
+
+            // Update the waiting times
+            oldWaitingTime = getTotalWaitingTime(&intersection);
+            currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
+            
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printWaitingTime(&intersection, numLanes, numCars);
+                printIntersectionVisual(&intersection, action);
+            }
+            
+            // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
+            reward = oldWaitingTime - currentWaitingTime;
+
+            // Compute average reward on action selection (i), over multiple runs (j)
+            averageWaitingTime[i]= averageWaitingTime[i]+((currentWaitingTime-averageWaitingTime[i])/(j+1));  
+
+            // Get next state's max qValue
+            double estOptFutValue = qValues[0][statePrime];
+            for(int i=1; i<numLanes;i++){
+                if(qValues[i][statePrime] > estOptFutValue){
+                    estOptFutValue = qValues[i][statePrime];
+                }
+            }
+
+            // Get current state's max qValue
+            double optCurValue = qValues[0][state];
+            for(int i=1; i<numLanes;i++){
+                if(qValues[i][state] > optCurValue){
+                    optCurValue = qValues[i][state];
+                }
+            }
+
+            // Update qValues Q(s,a) = Q(s,a)+alpha[reward - p + maxQ(s(+1),a(+1+))−Q(s,a)]
+            qValues[action][state] = qValues[action][state] + learningRate * (reward - avgExpReward + estOptFutValue - qValues[action][state]);
+
+            // Update average expected reward
+            if(qValues[action][state] == optCurValue){
+                avgExpReward = avgExpReward + stepSize * (reward - avgExpReward + estOptFutValue - optCurValue);
+            }
+
+            if(verbosity==true){
+                // Print Q-values
+                printf("Updated Q-values:\n");
+                printQValues(qValues, statePrime, numLanes); 
+            
+                // End of epoch
+                printf("Reward : %d.\n", reward);
+                printf("-------------------------------------------------\n"); 
+            }           
+        }
+    }
+    return averageWaitingTime;
+}
+
+
 // Algorithm that chooses new traffic signs by Sarsa (On policy Temporal Difference control)
 double* sarsa(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy, bool verbosity, int numRuns){
     double* averageWaitingTime = (double*)calloc(numEpochs, sizeof(double));
@@ -731,12 +893,28 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
     // free(averageRewards);
 
     // Perform Sarsa (3) with the Optimal initial values policy (2) and write results to a csv file
-    algorithm=3;
-    policy=2;
-    printf("Running Sarsa with Optimal Initial Values policy.\n");
-    averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // algorithm=3;
+    // policy=2;
+    // printf("Running Sarsa with Optimal Initial Values policy.\n");
+    // averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    // free(averageRewards);
+
+    // // Perform R-learning (4) with  E-greedy policy (1) and write results to a csv file
+    algorithm=4;
+    policy=1;
+    printf("Running R-learning with E-greedy policy.\n");
+    averageRewards = rLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
     writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
     free(averageRewards);
+
+    // Perform R-learning (4) with  Optimistic Initial Values policy (2) and write results to a csv file
+    // algorithm=4;
+    // policy=2;
+    // printf("Running R-learning with Optimistic Initial Values policy.\n");
+    // averageRewards = rLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    // free(averageRewards);
 }
 
 // Main of the program
