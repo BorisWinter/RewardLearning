@@ -14,42 +14,49 @@ struct Intersection{
 };
 
 // Writes outcomes to a csv file, this file is used in python to create plots
-void writeToCsvFile(int* rewards, int numEpochs, int algorithm, int policy){	
+void writeToCsvFile(double* rewards, int numEpochs, int algorithm, int policy){	
 	FILE *fp1;
-
-    //randomActionSelection
+    // Random Action Selection
 	if(algorithm==1){ 
 		fp1 = fopen("randomActionSelection.csv", "w");											
 		for (int i = 0; i< numEpochs; i++){
-			fprintf(fp1, "\n%d,%d",i,rewards[i]);
+			fprintf(fp1, "\n%d,%f",i,rewards[i]);
 		}
     fclose(fp1);
 	}
 
-    //qLearning
+    // Q-Learning
 	if(algorithm==2){ 
         if(policy==1){ //E-Greedy
             fp1 = fopen("qLearning-EGreedy.csv", "w");											
 		    for (int i = 0; i< numEpochs; i++){
-			fprintf(fp1, "\n%d,%d",i,rewards[i]);
+			fprintf(fp1, "\n%d,%f",i,rewards[i]);
 		    }
         }
         if(policy==2){ //Optimal Initial Values
             fp1 = fopen("qLearning-OptimalInitialValues.csv", "w");											
 		    for (int i = 0; i< numEpochs; i++){
-			fprintf(fp1, "\n%d,%d",i,rewards[i]);
+			fprintf(fp1, "\n%d,%f",i,rewards[i]);
 		    }
         }
 		
     fclose(fp1);
 	}
 
-    //???????????
+    // Sarsa
     if(algorithm==3){
-		fp1 = fopen("eGreedy.csv", "w");											
-		for (int i = 0; i< numEpochs; i++){
-			fprintf(fp1, "\n%d,%d",i,rewards[i]);
-		}
+		if(policy==1){ //E-Greedy
+            fp1 = fopen("sarsa-EGreedy.csv", "w");											
+		    for (int i = 0; i< numEpochs; i++){
+			fprintf(fp1, "\n%d,%f",i,rewards[i]);
+		    }
+        }
+        if(policy==2){ //Optimal Initial Values
+            fp1 = fopen("sarsa-OptimalInitialValues.csv", "w");											
+		    for (int i = 0; i< numEpochs; i++){
+			fprintf(fp1, "\n%d,%f",i,rewards[i]);
+		    }
+        }
     fclose(fp1);
 	}
 }
@@ -93,20 +100,24 @@ void setGreenLight(struct Intersection *intersection, int lane, int numCars){
 }
 
 // Function that adds random cars to some available lanes
-void addRandomCar(struct Intersection *intersection, int numLanes, int numCars, int maxTime){
+void addRandomCar(struct Intersection *intersection, int numLanes, int numCars, int maxTime, bool verbosity){
     // Go through all lanes, if the lane has a free spot, add a car in the
     // furthermost position with probability .5
     for(int lane=0; lane<numLanes; lane++){
 
         if(intersection->lanes[lane][0] == 0){
-            if(getRandomNumber(1,10) <= 5){
+            if(getRandomNumber(1,10) <= 2){
                 intersection->lanes[lane][0] = 1;
-                printf("New car at position 0 of lane %d.", lane);
+                if(verbosity==true){    
+                    printf("New car at position 0 of lane %d.", lane);
+                }
             }
         }else{
-            if(getRandomNumber(1,10) <= 5){
+            if(getRandomNumber(1,10) <= 2){
                 intersection->lanes[lane][1] = 1;
-                printf("New car at position 1 of lane %d.", lane);
+                if(verbosity==true){
+                    printf("New car at position 1 of lane %d.", lane);
+                }
             }
         }
     }
@@ -318,7 +329,6 @@ int getState(struct Intersection intersection, int numLanes, int numCars, int ma
              state= state*10 + intersection.lanes[i][j];
         }
     }
-    printf("\nstateIndex : %d\n", state);
     return state;
 }
 
@@ -363,328 +373,383 @@ int selectOptimalInitialValuesAction(int state, int numActions, double **estimat
 }
 
 // Algorithm that chooses randomly new traffic signs each epoch
-int* randomActionSelection(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs){
-    int currentWaitingTime = 0, oldWaitingTime = 0, reward;
-    int* rewards = malloc(numEpochs * sizeof(int));
-    // Run through epochs
-    for(int i=0; i<numEpochs; i++){
-        // Print number of epoch
-        printf("Epoch %d", i);
-        printWaitingTime(&intersection, numLanes, numCars);
-        
-    // Set a random light to green(action) and remove the cars in that lane
-        int action = getRandomNumber(0,numLanes-1);
-        
-        // Print visual representation of the intersection
-        printIntersectionVisual(&intersection, action);
-        
-        // Choose one of the 4 lights to be green
-        setGreenLight(&intersection, action, numCars);
-        printf("Green light for lane %d and waiting times +1.\n", action);
-        
-        // Update the waiting time of each car
-        updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
-        
-        // Print visual representation of the intersection
-        printIntersectionVisualInColor(&intersection, action);
-        
-        // Add a car to a random spot
-        addRandomCar(&intersection, numLanes, numCars, maxTime);
-        
-        // Update the waiting times and the reward(difference between waiting times)
-        oldWaitingTime = getTotalWaitingTime(&intersection);
-        currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
-        
-        // Print visual representation of the intersection
-        printWaitingTime(&intersection, numLanes, numCars);
-        printIntersectionVisual(&intersection, action);
-        
-        // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
-        if(oldWaitingTime!=0){
+double* randomActionSelection(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, bool verbosity, int numRuns){
+    double* averageRewards = (double*)calloc(numEpochs, sizeof(double));
+    // Iterate over runs
+    for(int j=0;j<numRuns;j++){
+        printf("Run %d\n", j);
+        int currentWaitingTime = 0, oldWaitingTime = 0, reward;
+        // Run through action selections
+        for(int i=0; i<numEpochs; i++){
+            // Print number of epoch
+            if(verbosity==true){ 
+                printf("Epoch %d", i);
+            }
+            // Print total time for all waiting cars
+            if(verbosity==true){
+                printWaitingTime(&intersection, numLanes, numCars);
+            }
+            // Set a random light to green(action) and remove the cars in that lane
+            int action = getRandomNumber(0,numLanes-1);
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printIntersectionVisual(&intersection, action);
+            }
+            // Choose one of the 4 lights to be green
+            setGreenLight(&intersection, action, numCars);
+            if(verbosity==true){
+                printf("Green light for lane %d and waiting times +1.\n", action);
+            }
+            // Update the waiting time of each car
+            updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printIntersectionVisualInColor(&intersection, action);
+            }
+            // Add a car to a random spot
+            addRandomCar(&intersection, numLanes, numCars, maxTime, verbosity);
+            // Update the waiting times and the reward(difference between waiting times)
+            oldWaitingTime = getTotalWaitingTime(&intersection);
+            currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printWaitingTime(&intersection, numLanes, numCars);
+                printIntersectionVisual(&intersection, action);
+            }
+            // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
             reward = oldWaitingTime - currentWaitingTime;
-            rewards[i]=reward;
-            printf("Reward : %d.\n", rewards[i]);
+            // Compute average reward on action selection (i), over multiple runs (j)
+            averageRewards[i]= averageRewards[i]+((reward-averageRewards[i])/(j+1));          
+            // End of epoch
+            if(verbosity==true){
+                printf("Reward : %d.\n", reward);  
+                printf("-------------------------------------------------\n");    
+            }
         }
-            
-        // End of epoch
-        printf("-------------------------------------------------\n");    
     }
-    return rewards;
+    return averageRewards;
 }
 
 // Algorithm that chooses new traffic signs by Q-learning (Off policy Temporal Difference control)
-int* qLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy){
-    int currentWaitingTime = 0, oldWaitingTime = 0;
-    double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
-    int numStates = getNumStates(numLanes, numCars, maxTime);
-    int* rewards = malloc(numEpochs * sizeof(int));
-    int state, statePrime, action;
-
-
+double* qLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy, bool verbosity, int numRuns){
+    double* averageRewards = (double*)calloc(numEpochs, sizeof(double));
     // Allocate memory for Q values
     double **qValues = malloc(numLanes * sizeof(double *));
     for(int i=0; i<numLanes; i++){
         qValues[i] = malloc(33333333 * sizeof(double));
     }
-
-    // Initialize Q values to 0 (E-greedy)
-    if(policy==1){
-        for(int i=0; i<numLanes; i++){
-            for(int j=0; j<33333333; j++){
-                qValues[i][j] = 0;
+    
+    // Iterate over runs
+    for(int j=0;j<numRuns;j++){
+        printf("Run %d\n", j);
+        int currentWaitingTime = 0, oldWaitingTime = 0;
+        double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
+        int numStates = getNumStates(numLanes, numCars, maxTime);
+        int state, statePrime, action;
+        
+        // Initialize Q values to 0 (E-greedy)
+        if(policy==1){
+            for(int i=0; i<numLanes; i++){
+                for(int j=0; j<33333333; j++){
+                    qValues[i][j] = 0;
+                }
             }
         }
-    }
-    // Initialize Q values to 1 (Optimistic Initial Value)
-    if(policy==2){
-        for(int i=0; i<numLanes; i++){
-            for(int j=0; j<33333333; j++){
-                qValues[i][j] = 3;
+        // Initialize Q values to 1 (Optimistic Initial Value)
+        if(policy==2){
+            for(int i=0; i<numLanes; i++){
+                for(int j=0; j<33333333; j++){
+                    qValues[i][j] = 3;
+                }
             }
         }
-    }
 
-    // Run through epochs
-    for(int i=0; i<numEpochs; i++){
-        // Print number of epoch
-        printf("Epoch %d\n", i);
+        // Run through epochs
+        for(int i=0; i<numEpochs; i++){
+            // Print number of epoch
+            if(verbosity==true){
+            printf("Epoch %d\n", i); 
+            }
 
-        // Print total time for all waiting cars
-        printWaitingTime(&intersection, numLanes, numCars);
+            // Print total time for all waiting cars
+            if(verbosity==true){
+                printWaitingTime(&intersection, numLanes, numCars);
+            }
 
-        // Get current state
-        state = getState(intersection, numLanes, numCars, maxTime);
+            // Get current state
+            state = getState(intersection, numLanes, numCars, maxTime);
 
-        // Prints the Q-values for the different actions
-        printQValues(qValues, statePrime, numLanes);
-        
-        // Choose action by the used policy
-        if(policy == 1){// E-greedy policy
-            action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
-        } 
-        if(policy == 2){// Optimal initial values policy
-            action = selectOptimalInitialValuesAction(state, numLanes, qValues);
-        } 
+            // Prints the Q-values for the different actions
+            if(verbosity==true){
+                printQValues(qValues, statePrime, numLanes);
+            }
+            
+            // Choose action by the used policy
+            if(policy == 1){// E-greedy policy
+                action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
+            } 
+            if(policy == 2){// Optimal initial values policy
+                action = selectOptimalInitialValuesAction(state, numLanes, qValues);
+            } 
 
-        // Print visual representation of the intersection
-        printIntersectionVisual(&intersection, action);
-        
-        // Choose one of the 4 lights to be green
-        setGreenLight(&intersection, action, numCars);
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printIntersectionVisual(&intersection, action);
+            }
+            
+            // Choose one of the 4 lights to be green
+            setGreenLight(&intersection, action, numCars);
 
-        // Print which traffic light is set to green
-        printf("Green light for lane %d and waiting times +1.\n", action);
-        
-        // Update the waiting time of each car
-        updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
-        
-        // Print visual representation of the intersection
-        printIntersectionVisualInColor(&intersection, action);
-        
-        // Add a car to a random spot
-        addRandomCar(&intersection, numLanes, numCars, maxTime);
+            // Print which traffic light is set to green
+            if(verbosity==true){
+            printf("Green light for lane %d and waiting times +1.\n", action); 
+            }
+            
+            // Update the waiting time of each car
+            updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
+            
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printIntersectionVisualInColor(&intersection, action);
+            }
+            
+            // Add a car to a random spot
+            addRandomCar(&intersection, numLanes, numCars, maxTime, verbosity);
 
-        // Get state after performed action
-        statePrime = getState(intersection, numLanes, numCars, maxTime);
+            // Get state after performed action
+            statePrime = getState(intersection, numLanes, numCars, maxTime);
 
-        // Update the waiting times
-        oldWaitingTime = getTotalWaitingTime(&intersection);
-        currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
-        
-        // Print visual representation of the intersection
-        printWaitingTime(&intersection, numLanes, numCars);
-        printIntersectionVisual(&intersection, action);
-        
-        // Get reward (reward = waitingTime_{t-1}-waitingTime_{t})
-        if(oldWaitingTime!=0){
+            // Update the waiting times
+            oldWaitingTime = getTotalWaitingTime(&intersection);
+            currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
+            
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printWaitingTime(&intersection, numLanes, numCars);
+                printIntersectionVisual(&intersection, action);
+            }
+            
+            // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
             reward = oldWaitingTime - currentWaitingTime;
-            rewards[i]=reward;
-            printf("Reward : %d.\n", rewards[i]);
-        }
 
-        // Get next state's max qValue
-        double estOptFutValue = qValues[0][statePrime];
-        for(int i=1; i<numLanes;i++){
-            if(qValues[i][statePrime] > estOptFutValue){
-                estOptFutValue = qValues[i][statePrime];
+            // Compute average reward on action selection (i), over multiple runs (j)
+            averageRewards[i]= averageRewards[i]+((reward-averageRewards[i])/(j+1));  
+
+            // Get next state's max qValue
+            double estOptFutValue = qValues[0][statePrime];
+            for(int i=1; i<numLanes;i++){
+                if(qValues[i][statePrime] > estOptFutValue){
+                    estOptFutValue = qValues[i][statePrime];
+                }
             }
+
+            // Update qValues Q(s,a) = Q(s,a)+alpha[reward + γ * maxQ(s(+1),a(+1+))−Q(s,a)]
+            qValues[action][state] = qValues[action][state] + learningRate *
+            (reward + discountFactor*estOptFutValue - qValues[action][state]);
+
+            if(verbosity==true){
+                // Print Q-values
+                printf("Updated Q-values:\n");
+                printQValues(qValues, statePrime, numLanes); 
+            
+                // End of epoch
+                printf("Reward : %d.\n", reward);
+                printf("-------------------------------------------------\n"); 
+            }           
         }
-
-        // Update qValues Q(s,a) = Q(s,a)+alpha[reward + γ * maxQ(s(+1),a(+1+))−Q(s,a)]
-        qValues[action][state] = qValues[action][state] + learningRate *
-        (reward + discountFactor*estOptFutValue - qValues[action][state]);
-
-        // Print Q-values
-        printf("Updated Q-values:\n");
-        printQValues(qValues, statePrime, numLanes);
-
-        // End of epoch
-        printf("-------------------------------------------------\n");    
     }
-    return rewards;
+    return averageRewards;
 }
 
 // Algorithm that chooses new traffic signs by Sarsa (On policy Temporal Difference control)
-int* sarsa(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy){
-    int currentWaitingTime = 0, oldWaitingTime = 0;
-    double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
-    int numStates = getNumStates(numLanes, numCars, maxTime);
-    int* rewards = malloc(numEpochs * sizeof(int));
-    int state, statePrime, action;
-
-
+double* sarsa(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy, bool verbosity, int numRuns){
+    double* averageRewards = (double*)calloc(numEpochs, sizeof(double));
     // Allocate memory for Q values
     double **qValues = malloc(numLanes * sizeof(double *));
     for(int i=0; i<numLanes; i++){
         qValues[i] = malloc(33333333 * sizeof(double));
     }
+    // Iterate over runs
+    for(int j=0;j<numRuns;j++){
+        printf("Run %d\n", j);    
+        int currentWaitingTime = 0, oldWaitingTime = 0;
+        double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
+        int numStates = getNumStates(numLanes, numCars, maxTime);
+        int state, statePrime, action;
 
-    // Initialize Q values to 0 (E-greedy)
-    if(policy==1){
-        for(int i=0; i<numLanes; i++){
-            for(int j=0; j<33333333; j++){
-                qValues[i][j] = 0;
+        // Initialize Q values to 0 (E-greedy)
+        if(policy==1){
+            for(int i=0; i<numLanes; i++){
+                for(int j=0; j<33333333; j++){
+                    qValues[i][j] = 0;
+                }
             }
         }
-    }
-    // Initialize Q values to 1 (Optimistic Initial Value)
-    if(policy==2){
-        for(int i=0; i<numLanes; i++){
-            for(int j=0; j<33333333; j++){
-                qValues[i][j] = 3;
+        // Initialize Q values to 1 (Optimistic Initial Value)
+        if(policy==2){
+            for(int i=0; i<numLanes; i++){
+                for(int j=0; j<33333333; j++){
+                    qValues[i][j] = 3;
+                }
             }
         }
-    }
 
-    // Run through epochs
-    for(int i=0; i<numEpochs; i++){
-        // Print number of epoch
-        printf("Epoch %d\n", i);
+        // Run through epochs
+        for(int i=0; i<numEpochs; i++){
+            // Print number of epoch
+            if(verbosity==true){
+                printf("Epoch %d\n", i);
+            }
+            
 
-        // Print total time for all waiting cars
-        printWaitingTime(&intersection, numLanes, numCars);
+            // Print total time for all waiting cars
+            if(verbosity==true){
+                printWaitingTime(&intersection, numLanes, numCars);
+            }
 
-        // Get current state
-        state = getState(intersection, numLanes, numCars, maxTime);
+            // Get current state
+            state = getState(intersection, numLanes, numCars, maxTime);
 
-        // Prints the Q-values for the different actions
-        printQValues(qValues, statePrime, numLanes);
-        
-        // Choose action by the used policy
-        if(policy == 1){// E-greedy policy
-            action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
-        } 
-        if(policy == 2){// Optimal initial values policy
-            action = selectOptimalInitialValuesAction(state, numLanes, qValues);
-        } 
+            // Prints the Q-values for the different actions
+            if(verbosity==true){
+                printQValues(qValues, statePrime, numLanes);
+            }
+            
+            // Choose action by the used policy
+            if(policy == 1){// E-greedy policy
+                action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
+            } 
+            if(policy == 2){// Optimal initial values policy
+                action = selectOptimalInitialValuesAction(state, numLanes, qValues);
+            } 
 
-        // Print visual representation of the intersection
-        printIntersectionVisual(&intersection, action);
-        
-        // Choose one of the 4 lights to be green
-        setGreenLight(&intersection, action, numCars);
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printIntersectionVisual(&intersection, action);
+            }
+            
+            // Choose one of the 4 lights to be green
+            setGreenLight(&intersection, action, numCars);
 
-        // Print which traffic light is set to green
-        printf("Green light for lane %d and waiting times +1.\n", action);
-        
-        // Update the waiting time of each car
-        updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
-        
-        // Print visual representation of the intersection
-        printIntersectionVisualInColor(&intersection, action);
-        
-        // Add a car to a random spot
-        addRandomCar(&intersection, numLanes, numCars, maxTime);
+            // Print which traffic light is set to green
+            if(verbosity==true){
+                printf("Green light for lane %d and waiting times +1.\n", action);
+            }
+            
+            // Update the waiting time of each car
+            updateWaitingTimes(&intersection, numLanes, numCars, maxTime);
+            
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printIntersectionVisualInColor(&intersection, action);
+            }
 
-        // Get state after performed action
-        statePrime = getState(intersection, numLanes, numCars, maxTime);
+            // Add a car to a random spot
+            addRandomCar(&intersection, numLanes, numCars, maxTime, verbosity);
 
-        // Update the waiting times
-        oldWaitingTime = getTotalWaitingTime(&intersection);
-        currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
-        
-        // Print visual representation of the intersection
-        printWaitingTime(&intersection, numLanes, numCars);
-        printIntersectionVisual(&intersection, action);
-        
-        // Get reward (reward = waitingTime_{t-1}-waitingTime_{t})
-        if(oldWaitingTime!=0){
+            // Get state after performed action
+            statePrime = getState(intersection, numLanes, numCars, maxTime);
+
+            // Update the waiting times
+            oldWaitingTime = getTotalWaitingTime(&intersection);
+            currentWaitingTime = updateTotalWaitingTime(&intersection, numLanes, numCars);
+            
+            // Print visual representation of the intersection
+            if(verbosity==true){
+                printWaitingTime(&intersection, numLanes, numCars);
+                printIntersectionVisual(&intersection, action);
+            }
+
+            // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
             reward = oldWaitingTime - currentWaitingTime;
-            rewards[i]=reward;
-            printf("Reward : %d.\n", rewards[i]);
+            // Compute average reward on action selection (i), over multiple runs (j)
+            averageRewards[i]= averageRewards[i]+((reward-averageRewards[i])/(j+1)); 
+
+            // Get qValue of state after performing on policy action again (not as in Q learning: use action with optimal Q-value)
+            double estOptFutValue;
+            if(policy == 1){// E-greedy policy
+                action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
+                estOptFutValue = qValues[action][statePrime];
+            } 
+            if(policy == 2){// Optimal initial values policy
+                action = selectOptimalInitialValuesAction(state, numLanes, qValues);
+                estOptFutValue = qValues[action][statePrime]; 
+            } 
+
+            // Update Sarsa qValues Q(s,a) = Q(s,a)+alpha[reward + γ * Q(s(+1),a(+1+))−Q(s,a)],  in which Q(s(+1),a(+1+)) is computed by taking Q value from chosen action by policy (not optimal persé)
+            qValues[action][state] = qValues[action][state] + learningRate *
+            (reward + discountFactor*estOptFutValue - qValues[action][state]);
+
+            if(verbosity==true){
+                // Print Q-values
+                printf("Updated Q-values:\n");
+                printQValues(qValues, statePrime, numLanes);
+
+                // End of epoch
+                printf("Reward : %d.\n", reward);
+                printf("-------------------------------------------------\n");    
+            }
         }
-
-        // Get qValue of state after performing on policy action again (not as in Q learning: use action with optimal Q-value)
-        double estOptFutValue;
-        if(policy == 1){// E-greedy policy
-            action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
-            estOptFutValue = qValues[action][statePrime];
-        } 
-        if(policy == 2){// Optimal initial values policy
-            action = selectOptimalInitialValuesAction(state, numLanes, qValues);
-            estOptFutValue = qValues[action][statePrime]; 
-        } 
-
-        // Update Sarsa qValues Q(s,a) = Q(s,a)+alpha[reward + γ * Q(s(+1),a(+1+))−Q(s,a)],  in which Q(s(+1),a(+1+)) is computed by taking Q value from chosen action by policy (not optimal persé)
-        qValues[action][state] = qValues[action][state] + learningRate *
-        (reward + discountFactor*estOptFutValue - qValues[action][state]);
-
-        // Print Q-values
-        printf("Updated Q-values:\n");
-        printQValues(qValues, statePrime, numLanes);
-
-        // End of epoch
-        printf("-------------------------------------------------\n");    
     }
-    return rewards;
+    return averageRewards;
 }
 
 // Starts the different algorithms
-void startSimulation(struct Intersection intersection, int numEpochs, int numLanes, int numCars, int maxTime){
-    int* rewards = malloc(numEpochs * sizeof(int));
+void startSimulation(struct Intersection intersection, int numEpochs, int numLanes, int numCars, int maxTime, int numRuns, bool verbosity){
+    double* averageRewards = malloc(numEpochs * sizeof(double));
     int policy, algorithm;
 
     // Perform random action selection (1) with therefore random policy (0) and write results to a csv file
-    algorithm=1;
-    policy=0;
-    rewards = randomActionSelection(intersection, numLanes, numCars, maxTime, numEpochs);
-    writeToCsvFile(rewards, numEpochs, algorithm, policy);
+    // algorithm=1;
+    // policy=0;
+    // printf("Running random action selection with random policy.\n");
+    // averageRewards = randomActionSelection(intersection, numLanes, numCars, maxTime, numEpochs, verbosity, numRuns);
+    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    // free(averageRewards);
     
     // Perform Q learing (2) with the E-greedy policy (1) and write results to a csv file
-    algorithm=2;
-    policy=1;
-    rewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy);
-    writeToCsvFile(rewards, numEpochs, algorithm, policy);
+    // algorithm=2;
+    // policy=1;
+    // printf("Running Q-learning with E-greedy policy.\n");
+    // averageRewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    // free(averageRewards);
 
     // Perform Q learing (2) with the Optimal initial values policy (2) and write results to a csv file
-    algorithm=2;
-    policy=2;
-    rewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy);
-    writeToCsvFile(rewards, numEpochs, algorithm, policy);
+    // algorithm=2;
+    // policy=2;
+    // printf("Running Q-learning with Optimal Initial Values policy.\n");
+    // averageRewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    // free(averageRewards);
 
     // Perform Sarsa (3) with E-greedy policy (1) and write results to a csv file
     algorithm=3;
     policy=1;
-    rewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy);
-    writeToCsvFile(rewards, numEpochs, algorithm, policy);
+    printf("Running Sarsa with E-greedy policy.\n");
+    averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    free(averageRewards);
 
     // Perform Sarsa (3) with the Optimal initial values policy (2) and write results to a csv file
-    algorithm=3;
-    policy=2;
-    rewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy);
-    writeToCsvFile(rewards, numEpochs, algorithm, policy);
-
+    // algorithm=3;
+    // policy=2;
+    // printf("Running Sarsa with Optimal Initial Values policy.\n");
+    // averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    // free(averageRewards);
 }
 
 // Main of the program
 int main(int argc, char *argv[]) {
     // Initialization
-    int numEpochs = 1000, numLanes = 4, numCars = 2, maxTime = 3;
+    int actionSelections = 10000, numLanes = 4, numCars = 2, maxTime = 3, numRuns = 1000;
     srand(time(0));
+    bool verbosity = false;
     struct Intersection intersection = initializeIntersection(numLanes, numCars, maxTime);
       
     // Start the traffic control simulation
-    startSimulation(intersection, numEpochs, numLanes, numCars, maxTime);
+    startSimulation(intersection, actionSelections, numLanes, numCars, maxTime, numRuns, verbosity);
 
     // Free arrays in the intersection structure
     free(intersection.lanes);
