@@ -14,13 +14,13 @@ struct Intersection{
 };
 
 // Writes outcomes to a csv file, this file is used in python to create plots
-void writeToCsvFile(double* rewards, int numEpochs, int algorithm, int policy){	
+void writeToCsvFile(double* averageWaitingTime, int numEpochs, int algorithm, int policy){	
 	FILE *fp1;
     // Random Action Selection
 	if(algorithm==1){ 
 		fp1 = fopen("randomActionSelection.csv", "w");											
 		for (int i = 0; i< numEpochs; i++){
-			fprintf(fp1, "\n%d,%f",i,rewards[i]);
+			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
 		}
     fclose(fp1);
 	}
@@ -30,16 +30,15 @@ void writeToCsvFile(double* rewards, int numEpochs, int algorithm, int policy){
         if(policy==1){ //E-Greedy
             fp1 = fopen("qLearning-EGreedy.csv", "w");											
 		    for (int i = 0; i< numEpochs; i++){
-			fprintf(fp1, "\n%d,%f",i,rewards[i]);
+			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
 		    }
         }
         if(policy==2){ //Optimal Initial Values
             fp1 = fopen("qLearning-OptimalInitialValues.csv", "w");											
 		    for (int i = 0; i< numEpochs; i++){
-			fprintf(fp1, "\n%d,%f",i,rewards[i]);
+			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
 		    }
         }
-		
     fclose(fp1);
 	}
 
@@ -48,13 +47,13 @@ void writeToCsvFile(double* rewards, int numEpochs, int algorithm, int policy){
 		if(policy==1){ //E-Greedy
             fp1 = fopen("sarsa-EGreedy.csv", "w");											
 		    for (int i = 0; i< numEpochs; i++){
-			fprintf(fp1, "\n%d,%f",i,rewards[i]);
+			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
 		    }
         }
         if(policy==2){ //Optimal Initial Values
             fp1 = fopen("sarsa-OptimalInitialValues.csv", "w");											
 		    for (int i = 0; i< numEpochs; i++){
-			fprintf(fp1, "\n%d,%f",i,rewards[i]);
+			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
 		    }
         }
     fclose(fp1);
@@ -374,7 +373,7 @@ int selectOptimalInitialValuesAction(int state, int numActions, double **estimat
 
 // Algorithm that chooses randomly new traffic signs each epoch
 double* randomActionSelection(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, bool verbosity, int numRuns){
-    double* averageRewards = (double*)calloc(numEpochs, sizeof(double));
+    double* averageWaitingTime = (double*)calloc(numEpochs, sizeof(double));
     // Iterate over runs
     for(int j=0;j<numRuns;j++){
         printf("Run %d\n", j);
@@ -419,7 +418,7 @@ double* randomActionSelection(struct Intersection intersection, int numLanes, in
             // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
             reward = oldWaitingTime - currentWaitingTime;
             // Compute average reward on action selection (i), over multiple runs (j)
-            averageRewards[i]= averageRewards[i]+((reward-averageRewards[i])/(j+1));          
+            averageWaitingTime[i]= averageWaitingTime[i]+((currentWaitingTime-averageWaitingTime[i])/(j+1));          
             // End of epoch
             if(verbosity==true){
                 printf("Reward : %d.\n", reward);  
@@ -427,12 +426,12 @@ double* randomActionSelection(struct Intersection intersection, int numLanes, in
             }
         }
     }
-    return averageRewards;
+    return averageWaitingTime;
 }
 
 // Algorithm that chooses new traffic signs by Q-learning (Off policy Temporal Difference control)
 double* qLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy, bool verbosity, int numRuns){
-    double* averageRewards = (double*)calloc(numEpochs, sizeof(double));
+    double* averageWaitingTime = (double*)calloc(numEpochs, sizeof(double));
     // Allocate memory for Q values
     double **qValues = malloc(numLanes * sizeof(double *));
     for(int i=0; i<numLanes; i++){
@@ -533,7 +532,7 @@ double* qLearning(struct Intersection intersection, int numLanes, int numCars, i
             reward = oldWaitingTime - currentWaitingTime;
 
             // Compute average reward on action selection (i), over multiple runs (j)
-            averageRewards[i]= averageRewards[i]+((reward-averageRewards[i])/(j+1));  
+            averageWaitingTime[i]= averageWaitingTime[i]+((currentWaitingTime-averageWaitingTime[i])/(j+1));  
 
             // Get next state's max qValue
             double estOptFutValue = qValues[0][statePrime];
@@ -558,12 +557,12 @@ double* qLearning(struct Intersection intersection, int numLanes, int numCars, i
             }           
         }
     }
-    return averageRewards;
+    return averageWaitingTime;
 }
 
 // Algorithm that chooses new traffic signs by Sarsa (On policy Temporal Difference control)
 double* sarsa(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy, bool verbosity, int numRuns){
-    double* averageRewards = (double*)calloc(numEpochs, sizeof(double));
+    double* averageWaitingTime = (double*)calloc(numEpochs, sizeof(double));
     // Allocate memory for Q values
     double **qValues = malloc(numLanes * sizeof(double *));
     for(int i=0; i<numLanes; i++){
@@ -663,7 +662,7 @@ double* sarsa(struct Intersection intersection, int numLanes, int numCars, int m
             // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
             reward = oldWaitingTime - currentWaitingTime;
             // Compute average reward on action selection (i), over multiple runs (j)
-            averageRewards[i]= averageRewards[i]+((reward-averageRewards[i])/(j+1)); 
+            averageWaitingTime[i]= averageWaitingTime[i]+((currentWaitingTime-averageWaitingTime[i])/(j+1)); 
 
             // Get qValue of state after performing on policy action again (not as in Q learning: use action with optimal Q-value)
             double estOptFutValue;
@@ -691,7 +690,7 @@ double* sarsa(struct Intersection intersection, int numLanes, int numCars, int m
             }
         }
     }
-    return averageRewards;
+    return averageWaitingTime;
 }
 
 // Starts the different algorithms
@@ -724,20 +723,20 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
     // free(averageRewards);
 
     // Perform Sarsa (3) with E-greedy policy (1) and write results to a csv file
-    algorithm=3;
-    policy=1;
-    printf("Running Sarsa with E-greedy policy.\n");
-    averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
-    writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
-    free(averageRewards);
-
-    // Perform Sarsa (3) with the Optimal initial values policy (2) and write results to a csv file
     // algorithm=3;
-    // policy=2;
-    // printf("Running Sarsa with Optimal Initial Values policy.\n");
+    // policy=1;
+    // printf("Running Sarsa with E-greedy policy.\n");
     // averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
     // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
     // free(averageRewards);
+
+    // Perform Sarsa (3) with the Optimal initial values policy (2) and write results to a csv file
+    algorithm=3;
+    policy=2;
+    printf("Running Sarsa with Optimal Initial Values policy.\n");
+    averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    free(averageRewards);
 }
 
 // Main of the program
