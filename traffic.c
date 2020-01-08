@@ -122,14 +122,14 @@ void addRandomCar(struct Intersection *intersection, int numLanes, int numCars, 
     for(int lane=0; lane<numLanes; lane++){
 
         if(intersection->lanes[lane][0] == 0){
-            if(getRandomNumber(1,10) <= 2){
+            if(getRandomNumber(1,10) <= 4){
                 intersection->lanes[lane][0] = 1;
                 if(verbosity==true){    
                     printf("New car at position 0 of lane %d.", lane);
                 }
             }
         }else{
-            if(getRandomNumber(1,10) <= 2){
+            if(getRandomNumber(1,10) <= 4){
                 intersection->lanes[lane][1] = 1;
                 if(verbosity==true){
                     printf("New car at position 1 of lane %d.", lane);
@@ -433,7 +433,7 @@ double* randomActionSelection(struct Intersection intersection, int numLanes, in
                 printIntersectionVisual(&intersection, action);
             }
             // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
-            reward = oldWaitingTime - currentWaitingTime;
+            reward = oldWaitingTime - currentWaitingTime + 1;
             // Compute average reward on action selection (i), over multiple runs (j)
             averageWaitingTime[i]= averageWaitingTime[i]+((currentWaitingTime-averageWaitingTime[i])/(j+1));          
             // End of epoch
@@ -546,7 +546,7 @@ double* qLearning(struct Intersection intersection, int numLanes, int numCars, i
             }
             
             // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
-            reward = oldWaitingTime - currentWaitingTime;
+            reward = oldWaitingTime - currentWaitingTime + 1;
 
             // Compute average reward on action selection (i), over multiple runs (j)
             averageWaitingTime[i]= averageWaitingTime[i]+((currentWaitingTime-averageWaitingTime[i])/(j+1));  
@@ -576,7 +576,6 @@ double* qLearning(struct Intersection intersection, int numLanes, int numCars, i
     }
     return averageWaitingTime;
 }
-
 
 // Algorithm that chooses new traffic signs by R-learning (Off policy Temporal Difference control)
 double* rLearning(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy, bool verbosity, int numRuns){
@@ -678,7 +677,7 @@ double* rLearning(struct Intersection intersection, int numLanes, int numCars, i
             }
             
             // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
-            reward = oldWaitingTime - currentWaitingTime;
+            reward = oldWaitingTime - currentWaitingTime +1;
 
             // Compute average reward on action selection (i), over multiple runs (j)
             averageWaitingTime[i]= averageWaitingTime[i]+((currentWaitingTime-averageWaitingTime[i])/(j+1));  
@@ -721,7 +720,6 @@ double* rLearning(struct Intersection intersection, int numLanes, int numCars, i
     return averageWaitingTime;
 }
 
-
 // Algorithm that chooses new traffic signs by Sarsa (On policy Temporal Difference control)
 double* sarsa(struct Intersection intersection, int numLanes, int numCars, int maxTime, int numEpochs, int policy, bool verbosity, int numRuns){
     double* averageWaitingTime = (double*)calloc(numEpochs, sizeof(double));
@@ -736,7 +734,7 @@ double* sarsa(struct Intersection intersection, int numLanes, int numCars, int m
         int currentWaitingTime = 0, oldWaitingTime = 0;
         double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
         int numStates = getNumStates(numLanes, numCars, maxTime);
-        int state, statePrime, action;
+        int state, statePrime, action, sarsaAction = -1;
 
         // Initialize Q values to 0 (E-greedy)
         if(policy==1){
@@ -762,7 +760,6 @@ double* sarsa(struct Intersection intersection, int numLanes, int numCars, int m
                 printf("Epoch %d\n", i);
             }
             
-
             // Print total time for all waiting cars
             if(verbosity==true){
                 printWaitingTime(&intersection, numLanes, numCars);
@@ -776,13 +773,19 @@ double* sarsa(struct Intersection intersection, int numLanes, int numCars, int m
                 printQValues(qValues, statePrime, numLanes);
             }
             
-            // Choose action by the used policy
-            if(policy == 1){// E-greedy policy
-                action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
-            } 
-            if(policy == 2){// Optimal initial values policy
-                action = selectOptimalInitialValuesAction(state, numLanes, qValues);
-            } 
+            // If there is no sarsaAction yet, choose one by the policy
+            if(sarsaAction==-1){
+                if(policy == 1){// E-greedy policy
+                    action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
+                } 
+                if(policy == 2){// Optimal initial values policy
+                    action = selectOptimalInitialValuesAction(state, numLanes, qValues);
+                }
+            }
+            // If there is already a sarsa action (used for update rule of Sarsa learning), use that one!
+            else{
+                action=sarsaAction;
+            }
 
             // Print visual representation of the intersection
             if(verbosity==true){
@@ -822,19 +825,19 @@ double* sarsa(struct Intersection intersection, int numLanes, int numCars, int m
             }
 
             // Get reward (reward = waitingTime_{t-1}-waitinTime_{t})
-            reward = oldWaitingTime - currentWaitingTime;
+            reward = oldWaitingTime - currentWaitingTime + 1;
             // Compute average reward on action selection (i), over multiple runs (j)
             averageWaitingTime[i]= averageWaitingTime[i]+((currentWaitingTime-averageWaitingTime[i])/(j+1)); 
 
             // Get qValue of state after performing on policy action again (not as in Q learning: use action with optimal Q-value)
             double estOptFutValue;
             if(policy == 1){// E-greedy policy
-                action = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
-                estOptFutValue = qValues[action][statePrime];
+                sarsaAction = selectEpsilonGreedyAction(epsilon, state, numLanes, qValues);
+                estOptFutValue = qValues[sarsaAction][statePrime];
             } 
             if(policy == 2){// Optimal initial values policy
-                action = selectOptimalInitialValuesAction(state, numLanes, qValues);
-                estOptFutValue = qValues[action][statePrime]; 
+                sarsaAction = selectOptimalInitialValuesAction(state, numLanes, qValues);
+                estOptFutValue = qValues[sarsaAction][statePrime]; 
             } 
 
             // Update Sarsa qValues Q(s,a) = Q(s,a)+alpha[reward + γ * Q(s(+1),a(+1+))−Q(s,a)],  in which Q(s(+1),a(+1+)) is computed by taking Q value from chosen action by policy (not optimal persé)
@@ -869,12 +872,12 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
     // free(averageRewards);
     
     // Perform Q learing (2) with the E-greedy policy (1) and write results to a csv file
-    // algorithm=2;
-    // policy=1;
-    // printf("Running Q-learning with E-greedy policy.\n");
-    // averageRewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
-    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
-    // free(averageRewards);
+    algorithm=2;
+    policy=1;
+    printf("Running Q-learning with E-greedy policy.\n");
+    averageRewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    free(averageRewards);
 
     // Perform Q learing (2) with the Optimal initial values policy (2) and write results to a csv file
     // algorithm=2;
@@ -901,12 +904,12 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
     // free(averageRewards);
 
     // // Perform R-learning (4) with  E-greedy policy (1) and write results to a csv file
-    algorithm=4;
-    policy=1;
-    printf("Running R-learning with E-greedy policy.\n");
-    averageRewards = rLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
-    writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
-    free(averageRewards);
+    // algorithm=4;
+    // policy=1;
+    // printf("Running R-learning with E-greedy policy.\n");
+    // averageRewards = rLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    // free(averageRewards);
 
     // Perform R-learning (4) with  Optimistic Initial Values policy (2) and write results to a csv file
     // algorithm=4;
@@ -920,7 +923,7 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
 // Main of the program
 int main(int argc, char *argv[]) {
     // Initialization
-    int actionSelections = 10000, numLanes = 4, numCars = 2, maxTime = 3, numRuns = 1000;
+    int actionSelections = 6000, numLanes = 4, numCars = 2, maxTime = 3, numRuns = 500;
     srand(time(0));
     bool verbosity = false;
     struct Intersection intersection = initializeIntersection(numLanes, numCars, maxTime);
