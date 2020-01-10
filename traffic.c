@@ -459,7 +459,7 @@ double* qLearning(struct Intersection intersection, int numLanes, int numCars, i
     for(int j=0;j<numRuns;j++){
         printf("Run %d\n", j);
         int currentWaitingTime = 0, oldWaitingTime = 0;
-        double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
+        double learningRate = 0.30, discountFactor = 0.20, reward = 0, epsilon = 0.01;
         int numStates = getNumStates(numLanes, numCars, maxTime);
         int state, statePrime, action;
         
@@ -475,7 +475,7 @@ double* qLearning(struct Intersection intersection, int numLanes, int numCars, i
         if(policy==2){
             for(int i=0; i<numLanes; i++){
                 for(int j=0; j<33333333; j++){
-                    qValues[i][j] = 3;
+                    qValues[i][j] = 0.8;
                 }
             }
         }
@@ -590,7 +590,7 @@ double* rLearning(struct Intersection intersection, int numLanes, int numCars, i
     for(int j=0;j<numRuns;j++){
         printf("Run %d\n", j);
         int currentWaitingTime = 0, oldWaitingTime = 0;
-        double learningRate = 0.1, reward = 0, avgExpReward = 1, epsilon = 0.1, stepSize = 0.1;
+        double learningRate = 0.004, reward = 0, avgExpReward = 1, epsilon = 0.01, stepSize = 0.07;
         int numStates = getNumStates(numLanes, numCars, maxTime);
         int state, statePrime, action;
         
@@ -606,7 +606,7 @@ double* rLearning(struct Intersection intersection, int numLanes, int numCars, i
         if(policy==2){
             for(int i=0; i<numLanes; i++){
                 for(int j=0; j<33333333; j++){
-                    qValues[i][j] = 3;
+                    qValues[i][j] = 1;
                 }
             }
         }
@@ -698,7 +698,7 @@ double* rLearning(struct Intersection intersection, int numLanes, int numCars, i
                 }
             }
 
-            // Update qValues Q(s,a) = Q(s,a)+alpha[reward - p + maxQ(s(+1),a(+1+))−Q(s,a)]
+            // Update qValues Q(s,a) = Q(s,a)+alpha[reward - p + maxQ(s(+1),a(+1))−Q(s,a)]
             qValues[action][state] = qValues[action][state] + learningRate * (reward - avgExpReward + estOptFutValue - qValues[action][state]);
 
             // Update average expected reward
@@ -732,7 +732,7 @@ double* sarsa(struct Intersection intersection, int numLanes, int numCars, int m
     for(int j=0;j<numRuns;j++){
         printf("Run %d\n", j);    
         int currentWaitingTime = 0, oldWaitingTime = 0;
-        double learningRate = 0.1, discountFactor = 0.1, reward = 0, epsilon = 0.1;
+        double learningRate = 0.24, discountFactor = 0.08, reward = 0, epsilon = 0.12;
         int numStates = getNumStates(numLanes, numCars, maxTime);
         int state, statePrime, action, sarsaAction = -1;
 
@@ -748,7 +748,7 @@ double* sarsa(struct Intersection intersection, int numLanes, int numCars, int m
         if(policy==2){
             for(int i=0; i<numLanes; i++){
                 for(int j=0; j<33333333; j++){
-                    qValues[i][j] = 3;
+                    qValues[i][j] = 2.5;
                 }
             }
         }
@@ -858,48 +858,63 @@ double* sarsa(struct Intersection intersection, int numLanes, int numCars, int m
     return averageWaitingTime;
 }
 
+void avgLastHundred(int numEpochs, double *averageRewards){
+    double lastOneHundred = 0;
+    for(int i= numEpochs-100; i<numEpochs; i++){
+        lastOneHundred = lastOneHundred + averageRewards[i];
+    }
+    lastOneHundred = lastOneHundred/100;
+    printf("Average last 100 actions: %f\n", lastOneHundred);
+}
+
 // Starts the different algorithms
 void startSimulation(struct Intersection intersection, int numEpochs, int numLanes, int numCars, int maxTime, int numRuns, bool verbosity){
     double* averageRewards = malloc(numEpochs * sizeof(double));
     int policy, algorithm;
+    
 
     // Perform random action selection (1) with therefore random policy (0) and write results to a csv file
     // algorithm=1;
     // policy=0;
     // printf("Running random action selection with random policy.\n");
     // averageRewards = randomActionSelection(intersection, numLanes, numCars, maxTime, numEpochs, verbosity, numRuns);
+    // avgLastHundred(numEpochs,averageRewards);
     // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
     // free(averageRewards);
     
     // Perform Q learing (2) with the E-greedy policy (1) and write results to a csv file
-    algorithm=2;
-    policy=1;
-    printf("Running Q-learning with E-greedy policy.\n");
-    averageRewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
-    writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
-    free(averageRewards);
+    // algorithm=2;
+    // policy=1;
+    // printf("Running Q-learning with E-greedy policy.\n");
+    // averageRewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // avgLastHundred(numEpochs,averageRewards);
+    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    // free(averageRewards);
 
     // Perform Q learing (2) with the Optimal initial values policy (2) and write results to a csv file
     // algorithm=2;
     // policy=2;
     // printf("Running Q-learning with Optimal Initial Values policy.\n");
     // averageRewards = qLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // avgLastHundred(numEpochs,averageRewards);
     // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
     // free(averageRewards);
 
     // Perform Sarsa (3) with E-greedy policy (1) and write results to a csv file
-    // algorithm=3;
-    // policy=1;
-    // printf("Running Sarsa with E-greedy policy.\n");
-    // averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
-    // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
-    // free(averageRewards);
+    algorithm=3;
+    policy=1;
+    printf("Running Sarsa with E-greedy policy.\n");
+    averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    avgLastHundred(numEpochs,averageRewards);
+    writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
+    free(averageRewards);
 
     // Perform Sarsa (3) with the Optimal initial values policy (2) and write results to a csv file
     // algorithm=3;
     // policy=2;
     // printf("Running Sarsa with Optimal Initial Values policy.\n");
     // averageRewards = sarsa(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // avgLastHundred(numEpochs,averageRewards);
     // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
     // free(averageRewards);
 
@@ -908,6 +923,7 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
     // policy=1;
     // printf("Running R-learning with E-greedy policy.\n");
     // averageRewards = rLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // avgLastHundred(numEpochs,averageRewards);
     // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
     // free(averageRewards);
 
@@ -916,6 +932,7 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
     // policy=2;
     // printf("Running R-learning with Optimistic Initial Values policy.\n");
     // averageRewards = rLearning(intersection, numLanes, numCars, maxTime, numEpochs, policy, verbosity, numRuns);
+    // avgLastHundred(numEpochs,averageRewards);
     // writeToCsvFile(averageRewards, numEpochs, algorithm, policy);
     // free(averageRewards);
 }
@@ -923,7 +940,7 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
 // Main of the program
 int main(int argc, char *argv[]) {
     // Initialization
-    int actionSelections = 6000, numLanes = 4, numCars = 2, maxTime = 3, numRuns = 500;
+    int actionSelections = 50000, numLanes = 4, numCars = 2, maxTime = 3, numRuns = 500;
     srand(time(0));
     bool verbosity = false;
     struct Intersection intersection = initializeIntersection(numLanes, numCars, maxTime);
