@@ -12,11 +12,11 @@ y4 = []
 
 filename1 = 'randomActionSelection.csv'
 filename2 = 'qLearning-EGreedy.csv'
-filename3 = 'qLearning-OptimalInitialValues.csv'
+filename3 = 'qLearning-OptimisticInitialValues.csv'
 filename4 = 'RLearning-EGreedy.csv'
-filename5 = 'RLearning-OptimalInitialValues.csv'
+filename5 = 'RLearning-OptimisticInitialValues.csv'
 filename6 = 'sarsa-EGreedy.csv'
-filename7 = 'sarsa-EGreedy.csv'
+filename7 = 'sarsa-OptimisticInitialValues.csv'
 
 
 with open(filename1) as f1:
@@ -54,12 +54,12 @@ with open(filename6) as f6:
 # plt.plot(x3, y3, color='green', linewidth=1, label='R-Learning(\u03B5=0.01, \u03B1=0.002, \u03B2=0.04 )')
 # plt.plot(x4, y4, color='black', linewidth=1, label='Sarsa(\u03B5=0.04, \u03B1=0.30, \u03B3=0.25)')
 
-# E-greedy high traffic
-plt.title("Traffic light control, \u03B5-greedy ,  P(newCar)=0.4")
-plt.plot(x1, y1, color='red', linewidth=1, label='Random Action Selection')
-plt.plot(x2, y2, color='blue', linewidth=1, label='Q-learning(\u03B5=0.01, \u03B1=0.30, \u03B3=0.20)')
-plt.plot(x3, y3, color='green', linewidth=1, label='R-Learning(\u03B5=0.01, \u03B1=0.004, \u03B2=0.07 )')
-plt.plot(x4, y4, color='black', linewidth=1, label='Sarsa(\u03B5=0.12, \u03B1=0.24, \u03B3=0.08)')
+# # E-greedy high traffic
+# plt.title("Traffic light control, \u03B5-greedy ,  P(newCar)=0.4")
+# plt.plot(x1, y1, color='red', linewidth=1, label='Random Action Selection')
+# plt.plot(x2, y2, color='blue', linewidth=1, label='Q-learning(\u03B5=0.01, \u03B1=0.30, \u03B3=0.20)')
+# plt.plot(x3, y3, color='green', linewidth=1, label='R-Learning(\u03B5=0.01, \u03B1=0.004, \u03B2=0.07 )')
+# plt.plot(x4, y4, color='black', linewidth=1, label='Sarsa(\u03B5=0.12, \u03B1=0.24, \u03B3=0.08)')
 
 # # OIV low traffic
 # plt.title("Traffic light control, Optimistic initial values,  P(newCar)=0.2")

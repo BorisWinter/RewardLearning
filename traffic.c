@@ -34,7 +34,7 @@ void writeToCsvFile(double* averageWaitingTime, int numEpochs, int algorithm, in
 		    }
         }
         if(policy==2){ //Optimal Initial Values
-            fp1 = fopen("qLearning-OptimalInitialValues.csv", "w");											
+            fp1 = fopen("qLearning-OptimisticInitialValues.csv", "w");											
 		    for (int i = 0; i< numEpochs; i++){
 			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
 		    }
@@ -51,7 +51,7 @@ void writeToCsvFile(double* averageWaitingTime, int numEpochs, int algorithm, in
 		    }
         }
         if(policy==2){ //Optimal Initial Values
-            fp1 = fopen("sarsa-OptimalInitialValues.csv", "w");											
+            fp1 = fopen("sarsa-OptimisticInitialValues.csv", "w");											
 		    for (int i = 0; i< numEpochs; i++){
 			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
 		    }
@@ -68,7 +68,7 @@ void writeToCsvFile(double* averageWaitingTime, int numEpochs, int algorithm, in
 		    }
         }
         if(policy==2){ //Optimal Initial Values
-            fp1 = fopen("RLearning-OptimalInitialValues.csv", "w");											
+            fp1 = fopen("RLearning-OptimisticInitialValues.csv", "w");											
 		    for (int i = 0; i< numEpochs; i++){
 			fprintf(fp1, "\n%d,%f",i,averageWaitingTime[i]);
 		    }
@@ -940,9 +940,21 @@ void startSimulation(struct Intersection intersection, int numEpochs, int numLan
 // Main of the program
 int main(int argc, char *argv[]) {
     // Initialization
-    int actionSelections = 50000, numLanes = 4, numCars = 2, maxTime = 3, numRuns = 500;
+    int actionSelections = 50000, numLanes = 4, numCars = 2, maxTime = 3, numRuns = 500, verbose;
+    bool verbosity = false; 
     srand(time(0));
-    bool verbosity = false;
+    printf("Do you want to print information about the crossroads in between?\n\t-(0) No\n\t-(1) Yes\n");
+    scanf("%d",&verbose);
+
+    // Set verbosity true or false
+    if(verbose==0){
+       verbosity = false; 
+    }
+    else{
+       verbosity = true;  
+    }
+    
+    // Initialize intersection
     struct Intersection intersection = initializeIntersection(numLanes, numCars, maxTime);
       
     // Start the traffic control simulation

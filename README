@@ -1,0 +1,12 @@
+This program can be run by the following two commands:
+
+'gcc traffic.c -o traffic -lm'
+'./traffic'
+
+The program asks whether you want to print information about the crossroads 
+in between. By typing 0 and pressing enter, no information is printed. By
+answering this question with 1, each crossroad is printed before, while and 
+after action selection. 
+
+
+
